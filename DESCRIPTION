@@ -1,0 +1,27 @@
+Package: FLBstate
+Title: Predicting FL B cell states from bulk gene expression data
+Version: 0.0.0.9000
+Authors@R: 
+    person("Jordan", "Krull", , "krull.jordan@mayo.edu", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0001-6507-8085"))
+Description: This package uses nu support vector regression to predict the normalized FL B cell state values in FL gene expression samples
+  derived from bulk biopsies. The signature is trained from bulk RNAseq samples which had matching RNAseq from bulk B cell aliquots of FL biopsies.
+  In this case, the svr trains to predict the signature matrix, which makes the coefficient values our result. This means a new model is generated
+  for each sample and any number of samples can be run. At this time, RNAseq in the form of log2TPM+1 has been validated to work. The function will
+  automatically detect non-log expression and convert to log2(+1). If using gene expression from other sources, such as GEP, a batch correct option
+  is available using 'batch_correct = TRUE'.  This re-aligns the input data to a more appropriate data space for prediction.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.2
+Imports: 
+    dplyr,
+    e1071,
+    magrittr
+Suggests: 
+    sva,
+    testthat (>= 3.0.0)
+Depends: 
+    R (>= 2.10)
+LazyData: true
+Config/testthat/edition: 3
