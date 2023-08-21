@@ -1,0 +1,196 @@
+---
+title: "FL_Bstate Calculator"
+output:
+  html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, message = FALSE)
+
+setwd("/Users/krull.33/Documents/Mayo Paper/Github_validation/Cancer_Cell_Github")
+
+
+library(FLBstate)
+```
+
+# Setup
+
+Below are simply packages used to generate this markdown.  
+  
+```{r}
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(magrittr)
+library(ComplexHeatmap)
+library(RColorBrewer)
+library(circlize)
+library(viridis)
+```
+
+
+# Package overview
+
+## Basic Functionality
+
+Read in the existing package gene expression values and the signature necessary to run the function.  
+  
+```{r}
+data("test_exp")
+data("signature_mat")
+```
+
+The package requires normalized gene expression values. The methodology will automatically detect if a log transformation has been applied and adjusts accordingly. The gene expression values can be from light based or sequencing based technologies. The signature matrix is derived from RNAseq TPM values, so batch correction is advised when using other technologies. The row names need to be either Hugo symbols or ensembl gene IDs. If you do not have those values, you will need to convert your input to have them.  
+  
+The input data looks like this...
+
+```{r}
+head(test_exp[,1:6])
+```
+
+Running the function looks like this...  
+  
+```{r}
+temp_df <- Coef_predictor(test_exp, nu = 0.1, batch_correct = FALSE)
+```
+
+It isn't recommended to mess with the nu value unless you are familiar with SVR and what changing the nu value means. The default value is set to the optimum for this study. As was mentioned, the batch correction is for non-RNA-Seq data. 
+  
+This dataset generated the signature, so we can observe the prediction accuracy from the prior values calculated from the original NMF.  
+  
+```{r, fig.width=6, fig.height=6}
+coef_prior <- read.delim("./data/Test_data_coef.txt", sep = "\t") %>% apply(1, function(x) x/sum(x)) %>% t()
+
+data.frame("Prior" = melt(coef_prior)$value,
+           "Predicted" = melt(temp_df)$value) %>%
+  ggplot() + aes(x = Prior, y = Predicted) +
+  geom_point() +
+  lims(x = c(0,1), y = c(0,1)) +
+  labs(title = "Overall Prediction") +
+  theme_bw()
+```
+
+```{r, fig.width=6, fig.height=6}
+data.frame("Prior" = coef_prior[,1],
+           "Predicted" = temp_df[,1]) %>%
+  ggplot() + aes(x = Prior, y = Predicted) +
+  geom_point() +
+  lims(x = c(0,1), y = c(0,1)) +
+  labs(title = "INFM Signature Prediction") +
+  theme_bw()
+```
+
+```{r, fig.width=6, fig.height=6}
+data.frame("Prior" = coef_prior[,2],
+           "Predicted" = temp_df[,2]) %>%
+  ggplot() + aes(x = Prior, y = Predicted) +
+  geom_point() +
+  lims(x = c(0,1), y = c(0,1)) +
+  labs(title = "PDZ Signature Prediction") +
+  theme_bw()
+```
+
+```{r, fig.width=6, fig.height=6}
+data.frame("Prior" = coef_prior[,3],
+           "Predicted" = temp_df[,3]) %>%
+  ggplot() + aes(x = Prior, y = Predicted) +
+  geom_point() +
+  lims(x = c(0,1), y = c(0,1)) +
+  labs(title = "CMI Signature Prediction") +
+  theme_bw()
+```
+
+You can also use an additional function to predict the class label. Once you've predicted the state values, you can use this function to predict the dominant signature.  
+
+```{r}
+predict_class(temp_df)
+```
+Thats it!
+
+# External Example
+  
+As an outside example, we'll use a GEP dataset from GSE127462. This dataset includes 302 FL samples which are bulk FL biopsies and are all diagnostic.
+
+```{r}
+GSE127462_exp <- read.csv("./data/GSE127462_exp_avg.csv", row.names = 1)
+```
+
+Predict the B cell states and class labels.  
+
+```{r}
+GSE127462_pred <- Coef_predictor(GSE127462_exp, batch_correct = TRUE)
+GSE127462_class <- predict_class(GSE127462_pred)
+
+GSE127462_pred <-
+lapply(c("INFM", "PDZ", "CMI"), function(x) GSE127462_pred[grep(x, GSE127462_class), ] %>% 
+         .[order(.[,x], decreasing = TRUE), ]) %>%
+  do.call(rbind, .)
+
+GSE127462_class <- GSE127462_class[rownames(GSE127462_pred)]
+```
+
+```{r, echo=FALSE}
+supplemental_fig_gen <- function(expression_mat, sig_mat_opt = "GeneName", prediction_scores, prediction_class){
+  overlap_genes <- intersect(rownames(expression_mat), signature_mat[,sig_mat_opt])
+
+  sig_genes_mat <- signature_mat[match(overlap_genes, signature_mat[,sig_mat_opt]), 3:5] %>%
+    set_rownames(overlap_genes) %>% t() %>% scale() %>% t()
+  
+  sig_genes_mat <- sig_genes_mat[apply(sig_genes_mat, 1, which.max) %>% sort() %>% names(),]
+  
+  #### Signature matrix heatmap
+  ht1 <- Heatmap(sig_genes_mat, cluster_columns = FALSE, cluster_rows = FALSE, row_title = NULL,
+               width = unit(1.5, "cm"),
+               row_split = apply(sig_genes_mat, 1, which.max), row_gap = unit(0, "mm"),
+               column_names_rot = 55,
+               heatmap_legend_param = list(title = "Gene Importance",
+                                      legend_height = unit(1.25, "in"),
+                                      title_position = "leftcenter-rot"))
+  
+  #### Heatmap annotation
+  ha = HeatmapAnnotation(foo = anno_block(gp = gpar(fill = brewer.pal(3,"Set1")[c(1,2,3)]),
+                                        labels = c("INFM", "PDZ", "CMI"),
+                                        labels_gp = gpar(col = "white", fontsize = 12), height = unit(1, "cm")),
+                       coefficients = anno_lines(prediction_scores, add_points = TRUE, gp = gpar(col = brewer.pal(3,"Set1")),
+                                                 pt_gp = gpar(col = brewer.pal(3,"Set1")), size = unit(1, "mm"), height = unit(2, "cm")),
+                       annotation_label = c(coefficients = "FL B Cell \nState"), 
+                       annotation_name_side = "left", 
+                       annotation_name_rot = c(coefficients = 0), 
+                       annotation_name_gp = gpar(fontsize = 10))
+  
+  #### Main Heatmap
+  col_fun <- colorRamp2(c(-2, -1.5, -1, -0.5, 0, 0.75, 1.5, 2.25, 3), viridis(9))#rev(brewer.pal(9,"RdBu")))
+  ht2 <- expression_mat[rownames(sig_genes_mat), rownames(prediction_scores)] %>% 
+    t() %>% scale() %>% t() %>% 
+    Heatmap(name = "Scaled Expression", col = col_fun, column_split = factor(prediction_class, levels = c("INFM", "PDZ", "CMI")), 
+            row_split = apply(sig_genes_mat, 1, which.max),
+            cluster_columns = FALSE, cluster_column_slices = FALSE,
+            show_row_names = FALSE, show_column_names = FALSE,
+            column_title = NULL, row_title = NULL,
+            top_annotation = ha, column_gap = unit(0, "mm"), row_gap = unit(0, "mm"),
+            layer_fun = function(j, i, x, y, width, height, fill, slice_r, slice_c) {
+                if(slice_r == slice_c) {
+                    grid.rect(gp = gpar(lwd = 3, fill = "transparent", col = "white"))
+                }},
+            height = unit(5, "in"),
+            width = unit(10, "in"),
+            heatmap_legend_param = list(title = "Scaled Expression",
+                                        legend_height = unit(1.25, "in"),
+                                        title_position = "leftcenter-rot"))
+  
+  return(ht1 + ht2)
+}
+```
+
+
+Plot the results.  
+  
+```{r, fig.height=8, fig.width=12}
+supplemental_fig_gen(GSE127462_exp, sig_mat_opt = "GeneName", GSE127462_pred, GSE127462_class)
+
+```
+
+
+
+
