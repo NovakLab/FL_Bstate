@@ -1,5 +1,5 @@
 #You can install the package via:
-libary(devtools)
+library(devtools)
 install_github("NovakLab/FL_Bstate")
 
 
