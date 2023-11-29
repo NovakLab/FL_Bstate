@@ -28,3 +28,5 @@ You can also use an additional function to predict the class label. Once you've 
 	predict_class(temp_df)
 
 The result of this is a named list of class labels for each sample.
+
+[Link to HTML file](https://github.com/NovakLab/FL_Bstate/blob/main/docs/index.html)
