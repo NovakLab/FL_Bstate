@@ -25,8 +25,6 @@ It isn't recommended to mess with the nu value unless you are familiar with SVR 
 ### Class Prediction
 You can also use an additional function to predict the class label. Once you've predicted the state values, you can use this function to predict the dominant signature.
 
-	predict_class(temp_df)
+	class_pred_res <- predict_class(temp_df)
 
 The result of this is a named list of class labels for each sample.
-
-[Link to HTML file](https://github.com/NovakLab/FL_Bstate/blob/main/docs/index.html)
